@@ -54,10 +54,14 @@ public class ApiWeather {
 
             String temperature = json.get("current").get("temp_c").toString();
             String condition = json.get("current").get("condition").get("text").toString();
+            String code = json.get("current").get("condition").get("code").toString();
+            String day = json.get("current").get("is_day").toString();
             String country = json.get("location").get("country").toString();
 
             data.put("temperature", temperature);
             data.put("condition", condition);
+            data.put("code", code);
+            data.put("day", day);
             data.put("country", country);
 
         } catch (MalformedURLException e) {
