@@ -6,13 +6,14 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.ResourceBundle;
 
+import com.alexisvc.models.City;
+import com.alexisvc.models.Temperature;
 import com.alexisvc.services.Enums.PathPeticion;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 
 public class ApiWeather {
 
@@ -20,11 +21,11 @@ public class ApiWeather {
     private final String URL_API_BASE = "http://api.weatherapi.com/v1";
     private final String LANGUAJE = "es";
 
-    public HashMap<String, String> getCurrentWeather(String city) {
+    public JsonNode fetchData(String nameCity, PathPeticion path) {
 
-        String urlString = URL_API_BASE + PathPeticion.CLIMA_ACTUAl +
-                "?key=" + API_KEY + "&q=" + FormatterParametter.formatterCity(city) + "&lang=" + LANGUAJE;
-        HashMap<String, String> data = new HashMap<>();
+        // Url to petition.
+        String urlString = URL_API_BASE + path + "?key=" + API_KEY + "&q=" + FormatterParametter.formatterCity(nameCity)
+                + "&lang=" + LANGUAJE;
 
         try {
             URL urlToRequest = new URL(urlString);
@@ -32,7 +33,9 @@ public class ApiWeather {
             connection.setRequestMethod("GET");
             connection.setRequestProperty("Accept", "application/json");
 
-            if (connection.getResponseCode() != 200) {
+            if (connection.getResponseCode() == 400) {
+                return null;
+            } else if (connection.getResponseCode() != 200) {
                 throw new RuntimeException("Error HTTP con codigo: " + connection.getResponseCode()
                         + " en url: " + urlString);
             }
@@ -45,100 +48,94 @@ public class ApiWeather {
             while ((text = reader.readLine()) != null) {
                 jsonString.append(text);
             }
-            inputReader.close();
-            reader.close();
 
             // Mapper StringJson to JsonObject
             ObjectMapper mapperJson = new ObjectMapper();
             JsonNode json = mapperJson.readTree(jsonString.toString());
 
-            String temperature = json.get("current").get("temp_c").toString();
-            String condition = json.get("current").get("condition").get("text").toString();
-            String code = json.get("current").get("condition").get("code").toString();
-            String day = json.get("current").get("is_day").toString();
-            String country = json.get("location").get("country").toString();
+            // Close resources.
+            inputReader.close();
+            reader.close();
 
-            data.put("temperature", temperature);
-            data.put("condition", condition);
-            data.put("code", code);
-            data.put("day", day);
-            data.put("country", country);
-
+            return json;
         } catch (MalformedURLException e) {
-            System.err.println("Error with url: " + urlString + " " + e.getMessage());
+            System.err.println("Error: " + e.getMessage());
         } catch (IOException e) {
-            System.err.println("Error to open connection: " + e.getMessage());
+            System.err.println("Error: " + e.getMessage());
         }
 
-        return data;
+        return null;
     }
 
-    public HashMap<String, HashMap<String, String>> getFuturePronosticToday(String city) {
-        String cityFormatter = FormatterParametter.formatterCity(city);
-        HashMap<String, HashMap<String, String>> data = new HashMap<>();
-        String urlString = URL_API_BASE + PathPeticion.FORECAST + "?key=" + API_KEY +
-                "&q=" + cityFormatter + "&lang=" + LANGUAJE;
+    public City getCurrentWeather(String nameCity) {
 
-        try {
-            URL urlToRequest = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) urlToRequest.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("Accept", "application/json");
+        JsonNode json = fetchData(nameCity, PathPeticion.CLIMA_ACTUAl);
+        City city = null;
 
-            if (connection.getResponseCode() != 200) {
-                throw new RuntimeException("Error HTTP with code: " + connection.getResponseCode());
-            }
+        if (json != null) {
 
-            InputStreamReader inputReader = new InputStreamReader(connection.getInputStream());
-            BufferedReader reader = new BufferedReader(inputReader);
+            city = new City();
 
-            String text = "";
-            StringBuilder jsonString = new StringBuilder();
+            String temperature = json.get("current").get("temp_c").toString();
+            String condition = json.get("current").get("condition").get("text").asText();
+            String code = json.get("current").get("condition").get("code").toString();
+            String day = json.get("current").get("is_day").toString();
+            String country = json.get("location").get("country").asText();
+            String region = json.get("location").get("region").asText();
+            String timeZone = json.get("location").get("tz_id").asText();
 
-            while ((text = reader.readLine()) != null) {
-                jsonString.append(text);
-            }
+            city.setName(nameCity);
+            city.setTemperature(new Temperature(Double.valueOf(temperature), condition, code));
+            city.setCountry(country);
+            city.setRegion(region);
+            city.setIsDay(day);
+            city.setTimeZone(timeZone);
 
-            // Mapper jsonString to JsonNode
-            JsonMapper mapper = new JsonMapper();
-            JsonNode json = mapper.readTree(jsonString.toString())
-                    .get("forecast")
-                    .get("forecastday")
-                    .get(0)
-                    .get("hour");
+        }
 
+        return city;
+    }
+
+    public ArrayList<Temperature> getFuturePronosticToday(String nameCity) {
+
+        ArrayList<Temperature> temperatures = null;
+        JsonNode json = fetchData(nameCity, PathPeticion.FORECAST)
+                .get("forecast")
+                .get("forecastday")
+                .get(0)
+                .get("hour");
+
+        if (json != null) {
             // Get data starting of actually hour.
             DateService dateService = new DateService();
             int sizeJsonArray = json.size();
             int elements = 0;
+
+            temperatures = new ArrayList<>();
 
             for (int i = 0; i < sizeJsonArray; i++) {
                 String dateString = json.get(i).get("time").asText();
                 JsonNode jsonWeather = json.get(i);
                 if (elements > 3) {
                     break;
-                }
-                if (dateService.checkDates(dateService.getDateActually(), dateString)) {
-                    HashMap<String, String> info = new HashMap<>();
+                }else if (dateService.checkDates(dateService.getDateActually(), dateString)) {
 
-                    String temperature = jsonWeather.get("temp_c").toString();
-                    String condition = jsonWeather.get("condition").get("text").toString();
+                    String temperature = jsonWeather.get("temp_c").asText();
+                    String condition = jsonWeather.get("condition").get("text").asText();
 
-                    info.put("temperature", temperature);
-                    info.put("condition", condition);
-                    data.put(dateString.split(" ")[1], info);
+                    Temperature temp = new Temperature();
+                    temp.setTemperatureCelcius(Double.valueOf(temperature));
+                    temp.setCondition(condition);
+                    temp.setHour(dateString.split(" ")[1]);
+
+                    temperatures.add(temp);
                     elements++;
                 }
-            }
 
-        } catch (MalformedURLException e) {
-            System.err.println("Error with url: " + urlString + " " + e.getMessage());
-        } catch (IOException e) {
-            System.err.println("Error to open connection: " + e.getMessage());
-            e.printStackTrace();
+            }
         }
 
-        return data;
+        return temperatures;
     }
 
 }

@@ -7,13 +7,9 @@ import java.util.Date;
 
 public class DateService {
 
-    private static int hourInit;
-    private Calendar date = Calendar.getInstance();
+    private static int hourInit = 50;
+    private Calendar date;
     private SimpleDateFormat formatterDate = new SimpleDateFormat("yyyy-MM-dd k:mm");
-
-    public DateService() {
-        hourInit = date.get(Calendar.HOUR_OF_DAY);
-    }
 
     public String getDateActually() {
         date = Calendar.getInstance();
@@ -36,7 +32,7 @@ public class DateService {
     }
 
     public boolean changeHour() {
-        int hourActually = date.get(Calendar.HOUR_OF_DAY);
+        int hourActually = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
         if (hourInit != hourActually) {
             hourInit = hourActually;
             return true;

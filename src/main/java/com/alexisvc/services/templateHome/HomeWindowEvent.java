@@ -11,13 +11,12 @@ public class HomeWindowEvent {
     private Home window;
     private final Timers timersWindow;;
 
-    public HomeWindowEvent(Home window){
+    public HomeWindowEvent(Home window, Timers timers){
         this.window = window;
-        timersWindow = window.getTimers();
-        setEvents();
+        this.timersWindow = timers;
     }
 
-    private void setEvents(){
+    public void setEvents(){
         window.addWindowListener(new WindowListener(){
 
             @Override
@@ -46,7 +45,7 @@ public class HomeWindowEvent {
 
             @Override
             public void windowOpened(WindowEvent arg0) {
-                timersWindow.initTimerUpdatePronostic();
+                timersWindow.initTimerClock();
             }
         });
     }
